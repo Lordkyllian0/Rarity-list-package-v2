@@ -21,7 +21,8 @@ if TYPE_CHECKING:
 
 
 def format_rarity(value: float) -> str:
-    return f"{value:.6f}".rstrip("0").rstrip(".")
+    percentage = value * 100
+    return f"{percentage:.6f}".rstrip("0").rstrip(".")
 
 
 def find_named_emoji(
