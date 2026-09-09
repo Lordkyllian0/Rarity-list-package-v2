@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ballsdex-rarity-list"
+version = "0.1.0"
+description = "Rarity list package for BallsDex with owned/not-owned indicators"
+requires-python = ">=3.12"
+readme = "README.md"
+
+[tool.setuptools.packages.find]
+include = ["raritylist*"]
