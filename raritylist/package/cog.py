@@ -24,7 +24,11 @@ def format_rarity(value: float) -> str:
     return f"{value:.6f}".rstrip("0").rstrip(".")
 
 
-def find_named_emoji(bot: "BallsDexBot", name: str, fallback: str) -> str:
+def find_named_emoji(
+    bot: "BallsDexBot",
+    name: str,
+    fallback: str,
+) -> str:
     application_emojis = getattr(bot, "application_emojis", None)
 
     if application_emojis:
@@ -42,6 +46,22 @@ def find_named_emoji(bot: "BallsDexBot", name: str, fallback: str) -> str:
             return str(emoji)
 
     return fallback
+
+
+def get_card_emoji(bot: "BallsDexBot", emoji_id: int) -> str:
+    """
+    Return the card emoji mention.
+
+    First try the bot cache.
+    If the emoji is not cached, build a Discord custom emoji mention
+    directly from the emoji ID.
+    """
+    emoji = bot.get_emoji(emoji_id)
+
+    if emoji is not None:
+        return str(emoji)
+
+    return f"<:card:{emoji_id}>"
 
 
 class RarityPaginator(discord.ui.View):
@@ -65,7 +85,10 @@ class RarityPaginator(discord.ui.View):
         self.not_owned_emoji = not_owned_emoji
 
         self.page = 0
-        self.pages = max(1, math.ceil(len(cards) / ITEMS_PER_PAGE))
+        self.pages = max(
+            1,
+            math.ceil(len(cards) / ITEMS_PER_PAGE),
+        )
 
         self._update_buttons()
 
@@ -83,19 +106,22 @@ class RarityPaginator(discord.ui.View):
 
         return True
 
-    def _update_buttons(self):
+    def _update_buttons(self) -> None:
         self.first.disabled = self.page <= 0
         self.back.disabled = self.page <= 0
         self.next.disabled = self.page >= self.pages - 1
         self.last.disabled = self.page >= self.pages - 1
 
-    def make_embed(self, user: discord.abc.User) -> discord.Embed:
+    def make_embed(
+        self,
+        user: discord.abc.User,
+    ) -> discord.Embed:
         start = self.page * ITEMS_PER_PAGE
         end = start + ITEMS_PER_PAGE
 
         visible_cards = self.cards[start:end]
 
-        lines = []
+        lines: list[str] = []
 
         for card in visible_cards:
             if card.pk in self.owned_ball_ids:
@@ -103,15 +129,13 @@ class RarityPaginator(discord.ui.View):
             else:
                 status = self.not_owned_emoji
 
-            card_emoji = self.bot.get_emoji(card.emoji_id)
-
-            if card_emoji:
-                card_emoji_text = str(card_emoji)
-            else:
-                card_emoji_text = "▫️"
+            card_emoji = get_card_emoji(
+                self.bot,
+                card.emoji_id,
+            )
 
             lines.append(
-                f"{status} {card_emoji_text} **{card.country}**\n"
+                f"{card_emoji} **{card.country}** {status}\n"
                 f"Rarity: {format_rarity(card.rarity)}%"
             )
 
@@ -127,17 +151,10 @@ class RarityPaginator(discord.ui.View):
             color=discord.Color.blurple(),
         )
 
-        embed.set_author(
-            name=user.display_name,
-            icon_url=user.display_avatar.url,
-        )
-
         embed.set_footer(
             text=(
                 f"Page {self.page + 1}/{self.pages} "
-                f"({len(self.cards)} entries) • "
-                f"{self.owned_emoji} owned • "
-                f"{self.not_owned_emoji} not owned"
+                f"({len(self.cards)} entries)"
             )
         )
 
@@ -146,7 +163,7 @@ class RarityPaginator(discord.ui.View):
     async def _refresh(
         self,
         interaction: discord.Interaction,
-    ):
+    ) -> None:
         self._update_buttons()
 
         await interaction.response.edit_message(
@@ -175,7 +192,10 @@ class RarityPaginator(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ):
-        self.page = max(0, self.page - 1)
+        self.page = max(
+            0,
+            self.page - 1,
+        )
         await self._refresh(interaction)
 
     @discord.ui.button(
@@ -226,24 +246,30 @@ class RarityPaginator(discord.ui.View):
 
 
 class RarityList(commands.Cog):
-    def __init__(self, bot: "BallsDexBot"):
+    def __init__(
+        self,
+        bot: "BallsDexBot",
+    ):
         self.bot = bot
 
-    @app_commands.command(name="rarities")
+    @app_commands.command(
+        name="rarities",
+        description="Show all cards ranked by rarity.",
+    )
     async def rarities(
         self,
         interaction: discord.Interaction["BallsDexBot"],
     ):
-        """Show all cards by rarity and mark which ones you own."""
-
-        await interaction.response.defer(thinking=True)
+        await interaction.response.defer(
+            thinking=True,
+        )
 
         player = await Player.objects.aget_or_none(
-            discord_id=interaction.user.id
+            discord_id=interaction.user.id,
         )
 
         if player is None:
-            owned_ball_ids = set()
+            owned_ball_ids: set[int] = set()
 
         else:
             owned_ball_ids = {
@@ -251,7 +277,10 @@ class RarityList(commands.Cog):
                 async for ball_id in (
                     BallInstance.objects
                     .filter(player=player)
-                    .values_list("ball_id", flat=True)
+                    .values_list(
+                        "ball_id",
+                        flat=True,
+                    )
                     .distinct()
                 )
             }
