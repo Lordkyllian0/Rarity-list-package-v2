@@ -262,96 +262,98 @@ class RarityList(commands.Cog):
     ):
         self.bot = bot
 
-@app_commands.command(
-    name="rarities",
-    description="Show cards ranked by rarity.",
-)
-@app_commands.describe(
-    owned="Filter cards by whether you own them.",
-)
-async def rarities(
-    self,
-    interaction: discord.Interaction["BallsDexBot"],
-    owned: bool | None = None,
-):
-    await interaction.response.defer(
-        thinking=True,
+    @app_commands.command(
+        name="rarities",
+        description="Show cards ranked by rarity.",
     )
-
-    player = await Player.objects.aget_or_none(
-        discord_id=interaction.user.id,
+    @app_commands.describe(
+        owned="Filter cards by whether you own them.",
     )
+    async def rarities(
+        self,
+        interaction: discord.Interaction["BallsDexBot"],
+        owned: bool | None = None,
+    ):
+        await interaction.response.defer(
+            thinking=True,
+        )
 
-    if player is None:
-        owned_ball_ids: set[int] = set()
-    else:
-        owned_ball_ids = {
-            ball_id
-            async for ball_id in (
-                BallInstance.objects
-                .filter(player=player)
-                .values_list(
-                    "ball_id",
-                    flat=True,
+        player = await Player.objects.aget_or_none(
+            discord_id=interaction.user.id,
+        )
+
+        if player is None:
+            owned_ball_ids: set[int] = set()
+        else:
+            owned_ball_ids = {
+                ball_id
+                async for ball_id in (
+                    BallInstance.objects
+                    .filter(player=player)
+                    .values_list(
+                        "ball_id",
+                        flat=True,
+                    )
+                    .distinct()
                 )
-                .distinct()
-            )
-        }
+            }
 
-    cards = [
-        card
-        for card in balls.values()
-        if card.enabled
-    ]
-
-    # owned: True = only owned cards
-    if owned is True:
         cards = [
             card
-            for card in cards
-            if card.pk in owned_ball_ids
+            for card in balls.values()
+            if card.enabled
         ]
 
-    # owned: False = only cards not owned
-    elif owned is False:
-        cards = [
-            card
-            for card in cards
-            if card.pk not in owned_ball_ids
-        ]
+        if owned is True:
+            cards = [
+                card
+                for card in cards
+                if card.pk in owned_ball_ids
+            ]
+            rarity_filter = "owned"
 
-    # owned not selected = show everything
+        elif owned is False:
+            cards = [
+                card
+                for card in cards
+                if card.pk not in owned_ball_ids
+            ]
+            rarity_filter = "not_owned"
 
-    cards = sorted(
-        cards,
-        key=lambda card: (
-            card.rarity,
-            card.country.casefold(),
-        ),
-    )
+        else:
+            rarity_filter = "all"
 
-    owned_emoji = find_named_emoji(
-        self.bot,
-        OWNED_EMOJI_NAME,
-        OWNED_FALLBACK,
-    )
+        cards = sorted(
+            cards,
+            key=lambda card: (
+                card.rarity,
+                card.country.casefold(),
+            ),
+        )
 
-    not_owned_emoji = find_named_emoji(
-        self.bot,
-        NOT_OWNED_EMOJI_NAME,
-        NOT_OWNED_FALLBACK,
-    )
+        owned_emoji = find_named_emoji(
+            self.bot,
+            OWNED_EMOJI_NAME,
+            OWNED_FALLBACK,
+        )
 
-    view = RarityPaginator(
-        bot=self.bot,
-        author_id=interaction.user.id,
-        cards=cards,
-        owned_ball_ids=owned_ball_ids,
-        owned_emoji=owned_emoji,
-        not_owned_emoji=not_owned_emoji,
-    )
+        not_owned_emoji = find_named_emoji(
+            self.bot,
+            NOT_OWNED_EMOJI_NAME,
+            NOT_OWNED_FALLBACK,
+        )
 
-    await interaction.followup.send(
-        embed=view.make_embed(interaction.user),
-        view=view,
-    )
+        view = RarityPaginator(
+            bot=self.bot,
+            author_id=interaction.user.id,
+            cards=cards,
+            owned_ball_ids=owned_ball_ids,
+            owned_emoji=owned_emoji,
+            not_owned_emoji=not_owned_emoji,
+            rarity_filter=rarity_filter,
+        )
+
+        await interaction.followup.send(
+            embed=view.make_embed(interaction.user),
+            view=view,
+        )
